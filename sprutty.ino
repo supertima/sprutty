@@ -19,7 +19,7 @@ LiquidCrystal_I2C lcd(0x27,20,4);     //  Here we define symbol display paramete
 
 volatile byte revolutions;
 unsigned int rpm;
-unsigned long timeold;
+double timefunc, timeold, trev, multiplier;
                               
 void setup()
 {                      
@@ -39,9 +39,12 @@ void setup()
       
     attachInterrupt(0, rpm_count, RISING);  //  Setup an interrupt which activates "rpm" function each time value on first interrupt (D2 pin) rises.
       
-    revolutions = 0;
-    rpm = 0;
-    timeold = 0; 
+    revolutions = 0;                  //  Stores number of revolutions between calculation cycles
+    rpm = 0;                          //  Needed for calculations
+    timeold = 0;                      //  Stores timestamp for the end of previous calculation cycle
+    timefunc = 0;                     //  Stores timestamp for the beginning of current calculation cycle
+    trev = 0;                         //  Time passed between current and previous calculation cycles
+    multiplier = 0;                   //  Multiplier for calculations
 }                                    
 
 
@@ -60,15 +63,27 @@ void loop()
   printTemperature(sensor3);          // Print sensor's 3 temperature on LCD.
 
   
-  // Here we begin our tachometer magic
-  if (revolutions >= 30) { 
-     //Update RPM every 20 counts, increase this for better RPM resolutions, decrease for faster update
-     rpm = 60*1000/(millis() - timeold)*revolutions;
-     timeold = millis();
+  if (revolutions >= 5)
+  { 
+     //  Update RPM every 5 counts, increase this for better RPM resolutions, decrease for faster update
+     noInterrupts();
+     timefunc = micros();
+     rpm = (60/((timefunc-timeold)/1000000))*revolutions;
+     timeold = timefunc;
      revolutions = 0;
-     lcd.setCursor( 15, 3);             //  Set cursor after the previously printed "Engine RPM:" on LCD.
+     interrupts();
+     lcd.setCursor( 16, 3);
+     lcd.print("   ");
+     lcd.setCursor( 15, 3);
      lcd.print(rpm);
    }
+  
+  //  This scenario is ran only when there is > than 5 sec. between 5 revs. thus telling us engine is very likely stopped.
+  else if (micros()-timefunc > 5000000)
+  {
+    lcd.setCursor( 15, 3);
+    lcd.print("STOP"); 
+  }
   
 }
 
