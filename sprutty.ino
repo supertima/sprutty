@@ -76,7 +76,7 @@ void loop()
      lcd.print(rpm);
    }
   
-  //  This scenario is ran only when there is > than 5 sec. between 5 revs. thus telling us engine is very likely stopped.
+  //  This scenario is ran only when there is more than 5 sec. since last 5 revs were counted. thus telling us engine is very likely stopped.
   else if (micros()-timefunc > 5000000)
   {
     lcd.setCursor( 15, 3);
