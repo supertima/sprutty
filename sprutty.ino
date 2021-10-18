@@ -19,7 +19,7 @@ LiquidCrystal_I2C lcd(0x27,20,4);     //  Here we define symbol display paramete
 
 volatile byte revolutions;
 unsigned int rpm;
-double timefunc, timeold, trev, multiplier;
+double timefunc, timeold;
                               
 void setup()
 {                      
@@ -43,8 +43,6 @@ void setup()
     rpm = 0;                          //  Needed for calculations
     timeold = 0;                      //  Stores timestamp for the end of previous calculation cycle
     timefunc = 0;                     //  Stores timestamp for the beginning of current calculation cycle
-    trev = 0;                         //  Time passed between current and previous calculation cycles
-    multiplier = 0;                   //  Multiplier for calculations
 }                                    
 
 
