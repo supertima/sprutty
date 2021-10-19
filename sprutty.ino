@@ -76,15 +76,12 @@ void rpm_count()
   rpm = 60/((micros()-timeprev)/1000000);   // Math is simple: we calculate how much time passed since previous rev. Knowing that, we can easily get how many RPM's will engine make in 60 seconds.
   timeprev = micros();
 }
-  
-}
 
 // Function to be activated during interrupt to count rpm's
 void rpm_count()                            
 {
   revolutions++;
 }
-
 
 // Here we define a universal function, which receives sensor's address as a parameter, checks it's temperature and print's it on LCD. 
 void printTemperature(DeviceAddress deviceAddress)    
