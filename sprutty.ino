@@ -17,7 +17,9 @@ uint8_t sensor3[8] = { 0x28, 0xFF, 0x64, 0x1E, 0x01, 0xA0, 0xE8, 0x05 };
 LiquidCrystal_I2C lcd(0x27,20,4);     //  Here we define symbol display parameters (address of I2C = 0x27, columns = 20, rows = 4)
 
 unsigned int rpm;
-double timefunc;
+
+volatile double lastflash;
+volatile int rpm_detect;
                               
 void setup()
 {                      
@@ -35,13 +37,25 @@ void setup()
     lcd.setCursor( 0, 3);             //  Set cursor on first symbol of fourth row. (Numeration begin from "0").
     lcd.print("Engine RPM:");         //  Print description on LCD. It is printed in the beginning of the fourth row.
       
-    attachInterrupt(0, rpm_count, RISING);  //  Setup an interrupt which activates "rpm" function each time value on first interrupt (D2 pin) rises.
+    attachInterrupt(0, detect, FALLING);  //  Setup an interrupt which activates "rpm" function each time value on first interrupt (D2 pin) rises.
       
     revolutions = 0;                  //  Stores number of revolutions between calculation cycles
     rpm = 0;                          //  Needed for calculations
     timeold = 0;                      //  Stores timestamp for the end of previous calculation cycle
     timefunc = 0;                     //  Stores timestamp for the beginning of current calculation cycle
 }                                    
+
+void detect()
+{
+rpm_detect=1;
+lastflash=micros();
+}
+
+void printTemperature(DeviceAddress deviceAddress)    
+{
+  float tempC = sensors.getTempC(deviceAddress);      // Check what is the temperature on the sensor with the address "deviceAddress" and sets this value to the variable "tempC".
+  lcd.print(tempC);                                   // Print tempC's value on the LCD. Note: this function prints text wherever cursors is. So you have to set cursor's location beforehand. 
+}
 
 void loop()
 {
@@ -54,6 +68,13 @@ void loop()
   lcd.setCursor( 15, 2);              // Set cursor after the previously printed "Radiator temp:" on LCD.
   printTemperature(sensor3);          // Print sensor's 3 temperature on LCD.
 
+  if (rpm_detect=1)
+  {
+    rpm_detect=0;
+    rpm = 60/((micros()-lastflash)/1000000);   // Math is simple: we calculate how much time passed since previous rev. Knowing that, we can easily get how many RPM's will engine make in 60 seconds.
+    lastflash = micros();
+  }
+  
   if ((micros()-timeprev)>2000000)    // If there is more than 2 seconds since last rev, we consider the engine is stopped
   {
      lcd.setCursor( 15, 3);
@@ -62,30 +83,9 @@ void loop()
   
   else                                // else we just print RPM's on the display
   {
-     lcd.setCursor( 16, 3);
-     lcd.print("   ");
+     lcd.setCursor( 15, 3);
+     lcd.print("     ");
      lcd.setCursor( 15, 3);
      lcd.print(rpm); 
   }  
-}
-
-
-// Function to be activated during interrupt to count rpm's. We count RPM's inside interrupt as is it is much faster and more precise.
-void rpm_count()                            
-{
-  rpm = 60/((micros()-timeprev)/1000000);   // Math is simple: we calculate how much time passed since previous rev. Knowing that, we can easily get how many RPM's will engine make in 60 seconds.
-  timeprev = micros();
-}
-
-// Function to be activated during interrupt to count rpm's
-void rpm_count()                            
-{
-  revolutions++;
-}
-
-// Here we define a universal function, which receives sensor's address as a parameter, checks it's temperature and print's it on LCD. 
-void printTemperature(DeviceAddress deviceAddress)    
-{
-  float tempC = sensors.getTempC(deviceAddress);      // Check what is the temperature on the sensor with the address "deviceAddress" and sets this value to the variable "tempC".
-  lcd.print(tempC);                                   // Print tempC's value on the LCD. Note: this function prints text wherever cursors is. So you have to set cursor's location beforehand. 
 }
