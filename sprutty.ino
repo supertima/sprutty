@@ -32,7 +32,15 @@ const int numSamples = 5;                    // Number of RPM samples to average
 float rpmSamples[numSamples];                // Array to store RPM samples
 int sampleIndex = 0;                         // Index for the sample array
 
-
+// Interrupt service routine with debouncing
+void countPulse() {
+  unsigned long currentPulseTime = millis(); // Get time of this interrupt
+  // Only count if enough time has passed since the last pulse
+  if (currentPulseTime - lastPulseTime >= debounceDelay) {
+    pulseCount++;                           // Increment pulse count
+    lastPulseTime = currentPulseTime;       // Update last pulse time
+  }
+}
 
 void setup()
 {                      
