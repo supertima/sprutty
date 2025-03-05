@@ -16,15 +16,39 @@ uint8_t sensor3[8] = { 0x28, 0xFF, 0x64, 0x1E, 0x01, 0xA0, 0xE8, 0x05 };
 
 LiquidCrystal_I2C lcd(0x27,20,4);     //  Here we define symbol display parameters (address of I2C = 0x27, columns = 20, rows = 4)
 
-unsigned int rpm;
+// Tachometer BLOCK
 
-volatile double lastflash;
-volatile int rpm_detect;
-                              
+volatile unsigned long pulseCount = 0;       // Counter for pulses detected
+unsigned long lastTime = 0;                  // Last time RPM was calculated
+const int sensorPin = 2;                     // IR sensor connected to digital pin 2 (interrupt pin)
+const int sampleTime = 1000;                 // Sample time in milliseconds (1 second)
+const int pulsesPerRevolution = 1;           // Adjust based on your setup
+float rpm = 0;                               // Calculated RPM
+const int debounceDelay = 5;                 // Minimum time between pulses (ms) to filter noise
+volatile unsigned long lastPulseTime = 0;    // Time of the last valid pulse
+
+// Moving average filter variables
+const int numSamples = 5;                    // Number of RPM samples to average
+float rpmSamples[numSamples];                // Array to store RPM samples
+int sampleIndex = 0;                         // Index for the sample array
+
+
+
 void setup()
 {                      
     sensors.begin();                  //  Initialize sensors
-     
+
+    pinMode(sensorPin, INPUT);                 // Set sensor pin as input
+    attachInterrupt(digitalPinToInterrupt(sensorPin), countPulse, FALLING); // Interrupt on falling edge
+    Serial.begin(9600);                        // Start serial communication
+    Serial.println("Tachometer Started");
+
+    // Initialize RPM samples array
+    for (int i = 0; i < numSamples; i++)
+      {
+        rpmSamples[i] = 0;
+      }
+  
     lcd.init();                       //  Initialize LCD display
     lcd.backlight();                  //  Power on LCD backlight 
     lcd.clear();                      //  Clear LCD of everything
@@ -36,20 +60,7 @@ void setup()
     lcd.print("Radiator temp:");      //  Print description on LCD. It is printed in the beginning of the third row.
     lcd.setCursor( 0, 3);             //  Set cursor on first symbol of fourth row. (Numeration begin from "0").
     lcd.print("Engine RPM:");         //  Print description on LCD. It is printed in the beginning of the fourth row.
-      
-    attachInterrupt(0, detect, FALLING);  //  Setup an interrupt which activates "rpm" function each time value on first interrupt (D2 pin) rises.
-      
-    revolutions = 0;                  //  Stores number of revolutions between calculation cycles
-    rpm = 0;                          //  Needed for calculations
-    timeold = 0;                      //  Stores timestamp for the end of previous calculation cycle
-    timefunc = 0;                     //  Stores timestamp for the beginning of current calculation cycle
 }                                    
-
-void detect()
-{
-rpm_detect=1;
-lastflash=micros();
-}
 
 void printTemperature(DeviceAddress deviceAddress)    
 {
@@ -59,6 +70,7 @@ void printTemperature(DeviceAddress deviceAddress)
 
 void loop()
 {
+  // TEMP DISPLAY BLOCK
   sensors.requestTemperatures();      // call "sensors.requestTemperatures()" to issue a global temperature request to all devices on the bus  
 
   lcd.setCursor( 15, 0);              // Set cursor after the previously printed "Oil temp:" on LCD.
@@ -68,14 +80,39 @@ void loop()
   lcd.setCursor( 15, 2);              // Set cursor after the previously printed "Radiator temp:" on LCD.
   printTemperature(sensor3);          // Print sensor's 3 temperature on LCD.
 
-  if (rpm_detect=1)
-  {
-    rpm_detect=0;
-    rpm = 60/((micros()-lastflash)/1000000);   // Math is simple: we calculate how much time passed since previous rev. Knowing that, we can easily get how many RPM's will engine make in 60 seconds.
-    lastflash = micros();
+
+  // REV DISPLAY BLOCK
+  unsigned long currentTime = millis();      // Get current time
+
+  // Calculate RPM every 'sampleTime' milliseconds
+  if (currentTime - lastTime >= sampleTime) {
+    noInterrupts();                          // Disable interrupts to safely read pulseCount
+    unsigned long pulses = pulseCount;       // Store pulse count
+    pulseCount = 0;                          // Reset pulse count
+    interrupts();                            // Re-enable interrupts
+
+    // Calculate instantaneous RPM
+    float instantRPM = (float)pulses / pulsesPerRevolution * (60000.0 / sampleTime);
+
+    // Update the moving average
+    rpmSamples[sampleIndex] = instantRPM;
+    sampleIndex = (sampleIndex + 1) % numSamples; // Circular buffer
+
+    // Calculate average RPM
+    float sum = 0;
+    for (int i = 0; i < numSamples; i++) {
+      sum += rpmSamples[i];
+    }
+    rpm = sum / numSamples;
+
+    // Print RPM to Serial Monitor
+    Serial.print("RPM: ");
+    Serial.println(rpm);
+
+    lastTime = currentTime;                  // Update lastTime
   }
   
-  if ((micros()-timeprev)>2000000)    // If there is more than 2 seconds since last rev, we consider the engine is stopped
+  if (sampleTime>2000)    // If there is more than 2 seconds since last rev, we consider the engine is stopped
   {
      lcd.setCursor( 15, 3);
      lcd.print("STOP");      
