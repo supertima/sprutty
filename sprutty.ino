@@ -17,29 +17,15 @@ uint8_t sensor3[8] = { 0x28, 0xFF, 0x64, 0x1E, 0x01, 0xA0, 0xE8, 0x05 };
 LiquidCrystal_I2C lcd(0x27,20,4);     //  Here we define symbol display parameters (address of I2C = 0x27, columns = 20, rows = 4)
 
 // Tachometer BLOCK
+unsigned long lastflash;
+int RPM;                           // Calculated RPM
 
-volatile unsigned long pulseCount = 0;       // Counter for pulses detected
-unsigned long lastTime = 0;                  // Last time RPM was calculated
 const int sensorPin = 2;                     // IR sensor connected to digital pin 2 (interrupt pin)
-const int sampleTime = 1000;                 // Sample time in milliseconds (1 second)
-const int pulsesPerRevolution = 1;           // Adjust based on your setup
-float rpm = 0;                               // Calculated RPM
-const int debounceDelay = 5;                 // Minimum time between pulses (ms) to filter noise
-volatile unsigned long lastPulseTime = 0;    // Time of the last valid pulse
-
-// Moving average filter variables
-const int numSamples = 5;                    // Number of RPM samples to average
-float rpmSamples[numSamples];                // Array to store RPM samples
-int sampleIndex = 0;                         // Index for the sample array
 
 // Interrupt service routine with debouncing
 void countPulse() {
-  unsigned long currentPulseTime = millis(); // Get time of this interrupt
-  // Only count if enough time has passed since the last pulse
-  if (currentPulseTime - lastPulseTime >= debounceDelay) {
-    pulseCount++;                           // Increment pulse count
-    lastPulseTime = currentPulseTime;       // Update last pulse time
-  }
+	RPM=60/((float)(micros()-lastflash)/1000000);  //расчет
+	lastflash=micros();  //запомнить время последнего оборота
 }
 
 void setup()
@@ -47,15 +33,9 @@ void setup()
     sensors.begin();                  //  Initialize sensors
 
     pinMode(sensorPin, INPUT);                 // Set sensor pin as input
-    attachInterrupt(digitalPinToInterrupt(sensorPin), countPulse, FALLING); // Interrupt on falling edge
+    attachInterrupt(digitalPinToInterrupt(sensorPin), countPulse, RISING); // Interrupt on falling edge
     Serial.begin(9600);                        // Start serial communication
     Serial.println("Tachometer Started");
-
-    // Initialize RPM samples array
-    for (int i = 0; i < numSamples; i++)
-      {
-        rpmSamples[i] = 0;
-      }
   
     lcd.init();                       //  Initialize LCD display
     lcd.backlight();                  //  Power on LCD backlight 
@@ -90,37 +70,8 @@ void loop()
 
 
   // REV DISPLAY BLOCK
-  unsigned long currentTime = millis();      // Get current time
 
-  // Calculate RPM every 'sampleTime' milliseconds
-  if (currentTime - lastTime >= sampleTime) {
-    noInterrupts();                          // Disable interrupts to safely read pulseCount
-    unsigned long pulses = pulseCount;       // Store pulse count
-    pulseCount = 0;                          // Reset pulse count
-    interrupts();                            // Re-enable interrupts
-
-    // Calculate instantaneous RPM
-    float instantRPM = (float)pulses / pulsesPerRevolution * (60000.0 / sampleTime);
-
-    // Update the moving average
-    rpmSamples[sampleIndex] = instantRPM;
-    sampleIndex = (sampleIndex + 1) % numSamples; // Circular buffer
-
-    // Calculate average RPM
-    float sum = 0;
-    for (int i = 0; i < numSamples; i++) {
-      sum += rpmSamples[i];
-    }
-    rpm = sum / numSamples;
-
-    // Print RPM to Serial Monitor
-    Serial.print("RPM: ");
-    Serial.println(rpm);
-
-    lastTime = currentTime;                  // Update lastTime
-  }
-  
-  if (sampleTime>2000)    // If there is more than 2 seconds since last rev, we consider the engine is stopped
+  if ((micros()-lastflash)>2000000)    // If there is more than 2 seconds since last rev, we consider the engine is stopped
   {
      lcd.setCursor( 15, 3);
      lcd.print("STOP");      
@@ -131,6 +82,6 @@ void loop()
      lcd.setCursor( 15, 3);
      lcd.print("     ");
      lcd.setCursor( 15, 3);
-     lcd.print(rpm); 
+     lcd.print(RPM); 
   }  
 }
