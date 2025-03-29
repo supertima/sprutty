@@ -53,7 +53,16 @@ void setup()
 void printTemperature(DeviceAddress deviceAddress)    
 {
   float tempC = sensors.getTempC(deviceAddress);      // Check what is the temperature on the sensor with the address "deviceAddress" and sets this value to the variable "tempC".
-  lcd.print(tempC);                                   // Print tempC's value on the LCD. Note: this function prints text wherever cursors is. So you have to set cursor's location beforehand. 
+
+  if (tempC<-50)    // If there is more than 2 seconds since last rev, we consider the engine is stopped
+  {
+     lcd.print("NONE");      
+   }
+  
+  else                                // else we just print RPM's on the display
+  {
+     lcd.print(tempC);    
+  }  
 }
 
 void loop()
